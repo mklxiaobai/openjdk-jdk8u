@@ -88,6 +88,9 @@ import java.util.function.Consumer;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * CopyOnWriteArraySet底层是使用CopyOnWriteArrayList存储元素的，所以它并不是使用Map来存储元素的。
+ * CopyOnWriteArraySet通过调用CopyOnWriteArrayList的addIfAbsent()方法来保证元素不重复；
+ *
  * @see CopyOnWriteArrayList
  * @since 1.5
  * @author Doug Lea
@@ -101,6 +104,7 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
 
     /**
      * Creates an empty set.
+     * 内部使用CopyOnWriteArrayList存储元素
      */
     public CopyOnWriteArraySet() {
         al = new CopyOnWriteArrayList<E>();

@@ -148,6 +148,14 @@ import java.io.IOException;
  * returned by all of this class's collection view methods are created from
  * the iterators of the corresponding collections.
  *
+ * 支持链表的hashMap
+ * LinkedHashMap 是 HashMap 的子类，增加了顺序访问的特性。
+ *  【默认】当 accessOrder = false 时，按照 key-value 的插入顺序进行访问。
+ *   当 accessOrder = true 时，按照 key-value 的读取顺序进行访问。
+ *   提供删除、访问、插入时回调实现
+ *   LinkedHashMap 可以方便实现 LRU 算法的缓存，
+ *
+ *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *
@@ -188,6 +196,8 @@ public class LinkedHashMap<K,V>
 
     /**
      * HashMap.Node subclass for normal LinkedHashMap entries.
+     * 继承了HashMap.Node
+     * 添加了前后指针
      */
     static class Entry<K,V> extends HashMap.Node<K,V> {
         Entry<K,V> before, after;
@@ -200,17 +210,22 @@ public class LinkedHashMap<K,V>
 
     /**
      * The head (eldest) of the doubly linked list.
+     * 头节点
      */
     transient LinkedHashMap.Entry<K,V> head;
 
     /**
      * The tail (youngest) of the doubly linked list.
+     * 尾结点
      */
     transient LinkedHashMap.Entry<K,V> tail;
 
     /**
      * The iteration ordering method for this linked hash map: <tt>true</tt>
      * for access-order, <tt>false</tt> for insertion-order.
+     * 访问顺序
+     * true 时，当 Entry 节点被访问时，放置到链表的结尾，被 tail 指向。
+     * false 时，当 Entry 节点被添加时，放置到链表的结尾，被 tail 指向。如果插入的 key 对应的 Entry 节点已经存在，也会被放到结尾。
      *
      * @serial
      */
@@ -252,9 +267,11 @@ public class LinkedHashMap<K,V>
         head = tail = null;
     }
 
+    // 重写了newNode方法
     Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) {
         LinkedHashMap.Entry<K,V> p =
             new LinkedHashMap.Entry<K,V>(hash, key, value, e);
+        // 添加到链表尾部
         linkNodeLast(p);
         return p;
     }
@@ -294,16 +311,20 @@ public class LinkedHashMap<K,V>
             a.before = b;
     }
 
+    // evict 翻译为驱逐，表示是否允许移除元素
     void afterNodeInsertion(boolean evict) { // possibly remove eldest
         LinkedHashMap.Entry<K,V> first;
+        // 判断是否满足移除最老节点 在LRU中会重写这个方法
         if (evict && (first = head) != null && removeEldestEntry(first)) {
             K key = first.key;
             removeNode(hash(key), key, null, false, true);
         }
     }
 
+    // 被读取时回调
     void afterNodeAccess(Node<K,V> e) { // move node to last
         LinkedHashMap.Entry<K,V> last;
+        // 如果accessOrder为true 并且e节点不是末尾节点 将p置于链表末尾
         if (accessOrder && (last = tail) != e) {
             LinkedHashMap.Entry<K,V> p =
                 (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
@@ -363,6 +384,8 @@ public class LinkedHashMap<K,V>
     /**
      * Constructs an empty insertion-ordered <tt>LinkedHashMap</tt> instance
      * with the default initial capacity (16) and load factor (0.75).
+     * 默认无参初始化 accessOrder为false
+     * 构造方法都是在初始化父类hashMap的基础上设置accessOrder属性 默认false
      */
     public LinkedHashMap() {
         super();
@@ -440,6 +463,7 @@ public class LinkedHashMap<K,V>
         if ((e = getNode(hash(key), key)) == null)
             return null;
         if (accessOrder)
+            // 被访问时回调
             afterNodeAccess(e);
         return e.value;
     }
@@ -452,6 +476,7 @@ public class LinkedHashMap<K,V>
        if ((e = getNode(hash(key), key)) == null)
            return defaultValue;
        if (accessOrder)
+           // 被访问时回调
            afterNodeAccess(e);
        return e.value;
    }

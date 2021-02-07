@@ -77,6 +77,18 @@ package java.util;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * TreeSet底层是采用TreeMap实现的一种Set，所以它是有序的，同样也是非线程安全的。
+ *
+ * （1）TreeSet底层使用NavigableMap存储元素；
+ *
+ * （2）TreeSet是有序的；
+ *
+ * （3）TreeSet是非线程安全的；
+ *
+ * （4）TreeSet实现了NavigableSet接口，而NavigableSet继承自SortedSet接口；
+ *
+ * （5）TreeSet实现了SortedSet接口；（彤哥年轻的时候面试被问过TreeSet和SortedSet的区别^^）
+ *
  * @param <E> the type of elements maintained by this set
  *
  * @author  Josh Bloch

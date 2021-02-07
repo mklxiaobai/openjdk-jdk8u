@@ -123,6 +123,16 @@ import java.util.function.Consumer;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * （1）WeakHashMap使用（数组 + 链表）存储结构；
+ *
+ * （2）WeakHashMap中的key是弱引用，gc的时候会被清除；
+ *
+ * （3）每次对map的操作都会剔除失效key对应的Entry；
+ *
+ * （4）使用String作为key时，一定要使用new String()这样的方式声明key，才会失效，其它的基本类型的包装类型是一样的；
+ *
+ * （5）WeakHashMap常用来作为缓存使用；
+ *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *

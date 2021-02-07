@@ -108,6 +108,12 @@ import java.util.function.Function;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * 跳表是一个随机化的数据结构，实质就是一种可以进行二分查找的有序链表。
+ *
+ * 跳表在原有的有序链表上面增加了多级索引，通过索引来实现快速查找。
+ *
+ * 跳表不仅能提高搜索性能，同时也可以提高插入和删除操作的性能。
+ *
  * @author Doug Lea
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
@@ -388,6 +394,8 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
      * Initializes or resets state. Needed by constructors, clone,
      * clear, readObject. and ConcurrentSkipListSet.clone.
      * (Note that comparator must be separately initialized.)
+     *
+     * 初始化了头索引节点
      */
     private void initialize() {
         keySet = null;
@@ -413,9 +421,13 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
      * headed by a dummy node accessible as head.node. The value field
      * is declared only as Object because it takes special non-V
      * values for marker and header nodes.
+     *
+     *  数据节点，典型的单链表结构
      */
     static final class Node<K,V> {
         final K key;
+        // 注意：这里value的类型是Object，而不是V
+        // 在删除元素的时候value会指向当前元素本身
         volatile Object value;
         volatile Node<K,V> next;
 
@@ -561,6 +573,7 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
      * fields, they have different types and are handled in different
      * ways, that can't nicely be captured by placing field in a
      * shared abstract class.
+     *  索引节点，存储着对应的node值，及向下和向右的索引指针
      */
     static class Index<K,V> {
         final Node<K,V> node;
@@ -635,6 +648,7 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
 
     /**
      * Nodes heading each level keep track of their level.
+     *  头索引节点，继承自Index，并扩展一个level字段，用于记录索引的层级
      */
     static final class HeadIndex<K,V> extends Index<K,V> {
         final int level;
@@ -815,87 +829,189 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
      * @return the old value, or null if newly inserted
      */
     private V doPut(K key, V value, boolean onlyIfAbsent) {
+        // 添加元素后存储在z中
         Node<K,V> z;             // added node
+        // key也不能为null
         if (key == null)
             throw new NullPointerException();
         Comparator<? super K> cmp = comparator;
+        // Part I：找到目标节点的位置并插入
+        // 这里的目标节点是数据节点，也就是最底层的那条链
+        // 自旋
         outer: for (;;) {
+            // 寻找目标节点之前最近的一个索引对应的数据节点，存储在b中，b=before
+            // 并把b的下一个数据节点存储在n中，n=next
+            // 为了便于描述，我这里把b叫做当前节点，n叫做下一个节点
             for (Node<K,V> b = findPredecessor(key, cmp), n = b.next;;) {
+                // 如果下一个节点不为空
+                // 就拿其key与目标节点的key比较，找到目标节点应该插入的位置
                 if (n != null) {
+                    // v=value，存储节点value值
+                    // c=compare，存储两个节点比较的大小
                     Object v; int c;
+                    // n的下一个数据节点，也就是b的下一个节点的下一个节点（孙子节点）
                     Node<K,V> f = n.next;
+                    // 如果n不为b的下一个节点
+                    // 说明有其它线程修改了数据，则跳出内层循环
+                    // 也就是回到了外层循环自旋的位置，从头来过
                     if (n != b.next)               // inconsistent read
                         break;
+                    // 如果n的value值为空，说明该节点已删除，协助删除节点
                     if ((v = n.value) == null) {   // n is deleted
+                        // todo 这里为啥会协助删除？后面讲
                         n.helpDelete(b, f);
                         break;
                     }
+                    // 如果b的值为空或者v等于n，说明b已被删除
+                    // 这时候n就是marker节点，那b就是被删除的那个
                     if (b.value == null || v == n) // b is deleted
                         break;
+                    // 如果目标key与下一个节点的key大
+                    // 说明目标元素所在的位置还在下一个节点的后面
                     if ((c = cpr(cmp, key, n.key)) > 0) {
+                        // 就把当前节点往后移一位
+                        // 同样的下一个节点也往后移一位
+                        // 再重新检查新n是否为空，它与目标key的关系
                         b = n;
                         n = f;
                         continue;
                     }
+                    // 如果比较时发现下一个节点的key与目标key相同
+                    // 说明链表中本身就存在目标节点
                     if (c == 0) {
+                        // 则用新值替换旧值，并返回旧值（onlyIfAbsent=false）
                         if (onlyIfAbsent || n.casValue(v, value)) {
                             @SuppressWarnings("unchecked") V vv = (V)v;
                             return vv;
                         }
+                        // 如果替换旧值时失败，说明其它线程先一步修改了值，从头来过
                         break; // restart if lost race to replace value
                     }
                     // else c < 0; fall through
+                    // 如果c<0，就往下走，也就是找到了目标节点的位置
+                    // else c < 0; fall through
                 }
 
+                // 有两种情况会到这里
+                // 一是到链表尾部了，也就是n为null了
+                // 二是找到了目标节点的位置，也就是上面的c<0
+
+                // 新建目标节点，并赋值给z
+                // 这里把n作为新节点的next
+                // 如果到链表尾部了，n为null，这毫无疑问
+                // 如果c<0，则n的key比目标key大，相妆于在b和n之间插入目标节点z
                 z = new Node<K,V>(key, value, n);
+                // 原子更新b的下一个节点为目标节点z
                 if (!b.casNext(n, z))
+                    // 如果更新失败，说明其它线程先一步修改了值，从头来过
                     break;         // restart if lost race to append to b
+                // 如果更新成功，跳出自旋状态
                 break outer;
             }
         }
 
+        // 经过Part I，目标节点已经插入到有序链表中了
+
+        // Part II：随机决定是否需要建立索引及其层次，如果需要则建立自上而下的索引
+
+        // 取个随机数
         int rnd = ThreadLocalRandom.nextSecondarySeed();
+        // 0x80000001展开为二进制为10000000000000000000000000000001
+        // 只有两头是1
+        // 这里(rnd & 0x80000001) == 0
+        // 相当于排除了负数（负数最高位是1），排除了奇数（奇数最低位是1）
+        // 只有最高位最低位都不为1的数跟0x80000001做&操作才会为0
+        // 也就是正偶数
         if ((rnd & 0x80000001) == 0) { // test highest and lowest bits
             int level = 1, max;
+            // 随机数从最低位的第二位开始，有几个连续的1则level就加几
+            // 因为最低位肯定是0，正偶数嘛
+            // 比如，1100110，level就加2
             while (((rnd >>>= 1) & 1) != 0)
                 ++level;
+
+            // 用于记录目标节点建立的最高的那层索引节点
             Index<K,V> idx = null;
+            // 取头索引节点（这是最高层的头索引节点）
             HeadIndex<K,V> h = head;
+            // 如果生成的层数小于等于当前最高层的层级
+            // 也就是跳表的高度不会超过现有高度
             if (level <= (max = h.level)) {
+                // 从第一层开始建立一条竖直的索引链表
+                // 这条链表使用down指针连接起来
+                // 每个索引节点里面都存储着目标节点这个数据节点
+                // 最后idx存储的是这条索引链表的最高层节点
                 for (int i = 1; i <= level; ++i)
                     idx = new Index<K,V>(z, idx, null);
             }
             else { // try to grow by one level
+                // 如果新的层数超过了现有跳表的高度
+                // 则最多只增加一层
+                // 比如现在只有一层索引，那下一次最多增加到两层索引，增加多了也没有意义
                 level = max + 1; // hold in array and later pick the one to use
+                // idxs用于存储目标节点建立的竖起索引的所有索引节点
+                // 其实这里直接使用idx这个最高节点也是可以完成的
+                // 只是用一个数组存储所有节点要方便一些
+                // 注意，这里数组0号位是没有使用的
                 @SuppressWarnings("unchecked")Index<K,V>[] idxs =
                     (Index<K,V>[])new Index<?,?>[level+1];
+                // 从第一层开始建立一条竖的索引链表（跟上面一样，只是这里顺便把索引节点放到数组里面了）
                 for (int i = 1; i <= level; ++i)
                     idxs[i] = idx = new Index<K,V>(z, idx, null);
+
+                // 自旋
                 for (;;) {
+                    // 旧的最高层头索引节点
                     h = head;
+                    // 旧的最高层级
                     int oldLevel = h.level;
+                    // 再次检查，如果旧的最高层级已经不比新层级矮了
+                    // 说明有其它线程先一步修改了值，从头来过
                     if (level <= oldLevel) // lost race to add level
                         break;
+                    // 新的最高层头索引节点
                     HeadIndex<K,V> newh = h;
+                    // 头节点指向的数据节点
                     Node<K,V> oldbase = h.node;
+                    // 超出的部分建立新的头索引节点
                     for (int j = oldLevel+1; j <= level; ++j)
                         newh = new HeadIndex<K,V>(oldbase, newh, idxs[j], j);
+                    // 原子更新头索引节点
                     if (casHead(h, newh)) {
                         h = newh;
+                        // 把level赋值为旧的最高层级的
+                        // idx指向的不是最高的索引节点了
+                        // 而是与旧最高层平齐的索引节点
                         idx = idxs[level = oldLevel];
                         break;
                     }
                 }
             }
             // find insertion points and splice in
+            // 经过上面的步骤，有两种情况
+            // 一是没有超出高度，新建一条目标节点的索引节点链
+            // 二是超出了高度，新建一条目标节点的索引节点链，同时最高层头索引节点同样往上长
+
+            // Part III：将新建的索引节点（包含头索引节点）与其它索引节点通过右指针连接在一起
+
+            // 这时level是等于旧的最高层级的，自旋
             splice: for (int insertionLevel = level;;) {
+                // h为最高头索引节点
                 int j = h.level;
+
+                // 从头索引节点开始遍历
+                // 为了方便，这里叫q为当前节点，r为右节点，d为下节点，t为目标节点相应层级的索引
                 for (Index<K,V> q = h, r = q.right, t = idx;;) {
+
+                    // 如果遍历到了最右边，或者最下边，
+                    // 也就是遍历到头了，则退出外层循环
                     if (q == null || t == null)
                         break splice;
                     if (r != null) {
+                        // n是右节点的数据节点，为了方便，这里直接叫右节点的值
                         Node<K,V> n = r.node;
                         // compare before deletion check avoids needing recheck
+                        // 比较目标key与右节点的值
                         int c = cpr(cmp, key, n.key);
                         if (n.value == null) {
                             if (!q.unlink(r))
@@ -1574,10 +1690,70 @@ public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
      * @throws ClassCastException if the specified key cannot be compared
      *         with the keys currently in the map
      * @throws NullPointerException if the specified key or value is null
+     *
+     * 我们这里把整个插入过程分成三个部分：
+     *
+     * Part I：找到目标节点的位置并插入
+     *
+     * （1）这里的目标节点是数据节点，也就是最底层的那条链；
+     *
+     * （2）寻找目标节点之前最近的一个索引对应的数据节点（数据节点都是在最底层的链表上）；
+     *
+     * （3）从这个数据节点开始往后遍历，直到找到目标节点应该插入的位置；
+     *
+     * （4）如果这个位置有元素，就更新其值（onlyIfAbsent=false）；
+     *
+     * （5）如果这个位置没有元素，就把目标节点插入；
+     *
+     * （6）至此，目标节点已经插入到最底层的数据节点链表中了；
+     *
+     * Part II：随机决定是否需要建立索引及其层次，如果需要则建立自上而下的索引
+     *
+     * （1）取个随机数rnd，计算(rnd & 0x80000001)；
+     *
+     * （2）如果不等于0，结束插入过程，也就是不需要创建索引，返回；
+     *
+     * （3）如果等于0，才进入创建索引的过程（只要正偶数才会等于0）；
+     *
+     * （4）计算while (((rnd >>>= 1) & 1) != 0)，决定层级数，level从1开始；
+     *
+     * （5）如果算出来的层级不高于现有最高层级，则直接建立一条竖直的索引链表（只有down有值），并结束Part II；
+     *
+     * （6）如果算出来的层级高于现有最高层级，则新的层级只能比现有最高层级多1；
+     *
+     * （7）同样建立一条竖直的索引链表（只有down有值）；
+     *
+     * （8）将头索引也向上增加到相应的高度，结束Part II；
+     *
+     * （9）也就是说，如果层级不超过现有高度，只建立一条索引链，否则还要额外增加头索引链的高度（脑补一下，后面举例说明）；
+     *
+     * Part III：将新建的索引节点（包含头索引节点）与其它索引节点通过右指针连接在一起（补上right指针）
+     *
+     * （1）从最高层级的头索引节点开始，向右遍历，找到目标索引节点的位置；
+     *
+     * （2）如果当前层有目标索引，则把目标索引插入到这个位置，并把目标索引前一个索引向下移一个层级；
+     *
+     * （3）如果当前层没有目标索引，则把目标索引位置前一个索引向下移一个层级；
+     *
+     * （4）同样地，再向右遍历，寻找新的层级中目标索引的位置，回到第（2）步；
+     *
+     * （5）依次循环找到所有层级目标索引的位置并把它们插入到横向的索引链表中；
+     *
+     * 总结起来，一共就是三大步：
+     *
+     * （1）插入目标节点到数据节点链表中；
+     *
+     * （2）建立竖直的down链表；
+     *
+     * （3）建立横向的right链表；
      */
     public V put(K key, V value) {
+        // 不能存储value为null的元素
+        // 因为value为null标记该元素被删除（后面会看到）
         if (value == null)
             throw new NullPointerException();
+
+        // 调用doPut()方法添加元素
         return doPut(key, value, false);
     }
 

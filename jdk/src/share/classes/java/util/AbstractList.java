@@ -537,6 +537,7 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
      */
     public int hashCode() {
         int hashCode = 1;
+        // 遍历每个元素累加 原hashCode*31后增加元素的hashCode
         for (E e : this)
             hashCode = 31*hashCode + (e==null ? 0 : e.hashCode());
         return hashCode;
@@ -573,6 +574,8 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
     }
 
     /**
+     * 记录集合被修改的次数  用来在迭代的时候快速失败
+     *
      * The number of times this list has been <i>structurally modified</i>.
      * Structural modifications are those that change the size of the
      * list, or otherwise perturb it in such a fashion that iterations in

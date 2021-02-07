@@ -103,6 +103,10 @@ package java.util;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * 链表功能的hashSet
+ * LinkedHashSet的底层使用LinkedHashMap存储元素。
+ * LinkedHashSet是有序的，它是按照插入的顺序排序的。
+ *
  * @param <E> the type of elements maintained by this set
  *
  * @author  Josh Bloch

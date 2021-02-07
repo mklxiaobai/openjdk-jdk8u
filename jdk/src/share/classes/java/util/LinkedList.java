@@ -73,6 +73,17 @@ import java.util.function.Consumer;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * 实现List接口，提供数组的添加、删除、修改、迭代遍历操作
+ * 实现Deque接口，表示 LinkedList 提供双端队列的功能
+ * 实现Serializable接口，表示 LinkedList 支持序列化的功能。
+ * 实现Cloneable接口，表示 LinkedList 支持克隆。
+ *
+ * LinkedList 基于节点实现的双向链表的 List ，每个节点都指向前一个和后一个节点从而形成链表。
+ * LinkedList 提供队列、双端队列、栈的功能。
+ *
+ * LinkedList 移除指定位置的元素的最好时间复杂度是 O(1) ，最坏时间复杂度是 O(n) ，平均时间复杂度是 O(n) 。
+ * LinkedList 添加元素的最好时间复杂度是 O(1) ，最坏时间复杂度是 O(n) ，平均时间复杂度是 O(n) 。
+ *
  * @author  Josh Bloch
  * @see     List
  * @see     ArrayList
@@ -84,12 +95,14 @@ public class LinkedList<E>
     extends AbstractSequentialList<E>
     implements List<E>, Deque<E>, Cloneable, java.io.Serializable
 {
+    // 链表大小
     transient int size = 0;
 
     /**
      * Pointer to first node.
      * Invariant: (first == null && last == null) ||
      *            (first.prev == null && first.item != null)
+     * 首节点指针
      */
     transient Node<E> first;
 
@@ -97,6 +110,7 @@ public class LinkedList<E>
      * Pointer to last node.
      * Invariant: (first == null && last == null) ||
      *            (last.next == null && last.item != null)
+     * 尾节点指针
      */
     transient Node<E> last;
 
@@ -136,9 +150,12 @@ public class LinkedList<E>
 
     /**
      * Links e as last element.
+     * 添加到链表尾部
      */
     void linkLast(E e) {
+        // 拿到last节点
         final Node<E> l = last;
+        // 构建新节点
         final Node<E> newNode = new Node<>(l, e, null);
         last = newNode;
         if (l == null)
@@ -215,6 +232,7 @@ public class LinkedList<E>
         if (prev == null) {
             first = next;
         } else {
+            // 将 prev 的 next 指向下一个节点
             prev.next = next;
             x.prev = null;
         }
@@ -222,10 +240,12 @@ public class LinkedList<E>
         if (next == null) {
             last = prev;
         } else {
+            // 将 next 的 prev 指向上一个节点
             next.prev = prev;
             x.next = null;
         }
 
+        // 将 x 的 item 设置为 null ，帮助 GC
         x.item = null;
         size--;
         modCount++;
@@ -330,6 +350,7 @@ public class LinkedList<E>
      * Appends the specified element to the end of this list.
      *
      * <p>This method is equivalent to {@link #addLast}.
+     * 添加单个元素
      *
      * @param e element to be appended to this list
      * @return {@code true} (as specified by {@link Collection#add})
@@ -378,6 +399,7 @@ public class LinkedList<E>
      * the specified collection is modified while the operation is in
      * progress.  (Note that this will occur if the specified collection is
      * this list, and it's nonempty.)
+     * 添加多个元素
      *
      * @param c collection containing elements to be added to this list
      * @return {@code true} if this list changed as a result of the call
@@ -405,20 +427,25 @@ public class LinkedList<E>
     public boolean addAll(int index, Collection<? extends E> c) {
         checkPositionIndex(index);
 
+        // 将集合转成数组
         Object[] a = c.toArray();
         int numNew = a.length;
         if (numNew == 0)
             return false;
 
+        // 获取第index位置的节点succ和上一个节点pred
         Node<E> pred, succ;
+        // 如果 index 就是链表大小，那说明插入队尾，所以 succ 为 null ，pred 为 last
         if (index == size) {
             succ = null;
             pred = last;
         } else {
+            // 如果 index 小于链表大小，则 succ 是第 index 个节点，prev 是 succ 的前一个二节点。
             succ = node(index);
             pred = succ.prev;
         }
 
+        // 遍历 a 数组，添加到 pred 的后面
         for (Object o : a) {
             @SuppressWarnings("unchecked") E e = (E) o;
             Node<E> newNode = new Node<>(pred, e, null);
@@ -429,6 +456,7 @@ public class LinkedList<E>
             pred = newNode;
         }
 
+        // 修改 succ 和 pred 的指向
         if (succ == null) {
             last = pred;
         } else {
@@ -436,6 +464,7 @@ public class LinkedList<E>
             succ.prev = pred;
         }
 
+        // 增加链表大小
         size += numNew;
         modCount++;
         return true;
@@ -498,6 +527,7 @@ public class LinkedList<E>
      * Inserts the specified element at the specified position in this list.
      * Shifts the element currently at that position (if any) and any
      * subsequent elements to the right (adds one to their indices).
+     * 将元素添加到指定下标
      *
      * @param index index at which the specified element is to be inserted
      * @param element element to be inserted
@@ -506,9 +536,11 @@ public class LinkedList<E>
     public void add(int index, E element) {
         checkPositionIndex(index);
 
+        // 如果index刚好等于size，添加到尾部
         if (index == size)
             linkLast(element);
         else
+            // 添加到中间位置
             linkBefore(element, node(index));
     }
 
@@ -516,6 +548,7 @@ public class LinkedList<E>
      * Removes the element at the specified position in this list.  Shifts any
      * subsequent elements to the left (subtracts one from their indices).
      * Returns the element that was removed from the list.
+     * 删除指定下标的节点
      *
      * @param index the index of the element to be removed
      * @return the element previously at the specified position
@@ -562,6 +595,7 @@ public class LinkedList<E>
 
     /**
      * Returns the (non-null) Node at the specified element index.
+     * 返回对应下标节点的值
      */
     Node<E> node(int index) {
         // assert isElementIndex(index);
@@ -967,9 +1001,15 @@ public class LinkedList<E>
         }
     }
 
+    /**
+     * 节点对象
+     */
     private static class Node<E> {
+        // 节点元素
         E item;
+        // 下一个节点指针
         Node<E> next;
+        // 上一个节点指针
         Node<E> prev;
 
         Node(Node<E> prev, E element, Node<E> next) {

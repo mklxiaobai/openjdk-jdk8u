@@ -76,6 +76,18 @@ import sun.misc.SharedSecrets;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * HashSet ，基于 HashMap 的 Set 实现类。在业务中，如果我们有排重的需求，一般会考虑使用 HashSet 。
+ *
+ * （1）HashSet内部使用HashMap的key存储元素，以此来保证元素不重复；
+ *
+ * （2）HashSet是无序的，因为HashMap的key是无序的；
+ *
+ * （3）HashSet中允许有一个null元素，因为HashMap允许key为null；
+ *
+ * （4）HashSet是非线程安全的；
+ *
+ * （5）HashSet是没有get()方法的；
+ *
  * @param <E> the type of elements maintained by this set
  *
  * @author  Josh Bloch
@@ -93,9 +105,11 @@ public class HashSet<E>
 {
     static final long serialVersionUID = -5024744406713321676L;
 
+    // 内部使用HashMap
     private transient HashMap<E,Object> map;
 
     // Dummy value to associate with an Object in the backing Map
+    // PRESENT作为父类map的value
     private static final Object PRESENT = new Object();
 
     /**

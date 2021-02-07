@@ -99,6 +99,8 @@ package java.util;
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *
+ * SortedMap规定了元素可以按key的大小来遍历，它定义了一些返回部分map的方法。
+ *
  * @author  Josh Bloch
  * @see Map
  * @see TreeMap
@@ -115,6 +117,7 @@ public interface SortedMap<K,V> extends Map<K,V> {
      * Returns the comparator used to order the keys in this map, or
      * {@code null} if this map uses the {@linkplain Comparable
      * natural ordering} of its keys.
+     * key的比较器
      *
      * @return the comparator used to order the keys in this map,
      *         or {@code null} if this map uses the natural ordering
@@ -133,6 +136,8 @@ public interface SortedMap<K,V> extends Map<K,V> {
      *
      * <p>The returned map will throw an {@code IllegalArgumentException}
      * on an attempt to insert a key outside its range.
+     *
+     * 返回fromKey（包含）到toKey（不包含）之间的元素组成的子map
      *
      * @param fromKey low endpoint (inclusive) of the keys in the returned map
      * @param toKey high endpoint (exclusive) of the keys in the returned map
@@ -162,6 +167,7 @@ public interface SortedMap<K,V> extends Map<K,V> {
      *
      * <p>The returned map will throw an {@code IllegalArgumentException}
      * on an attempt to insert a key outside its range.
+     * 返回小于toKey（不包含）的子map
      *
      * @param toKey high endpoint (exclusive) of the keys in the returned map
      * @return a view of the portion of this map whose keys are strictly
@@ -189,6 +195,7 @@ public interface SortedMap<K,V> extends Map<K,V> {
      *
      * <p>The returned map will throw an {@code IllegalArgumentException}
      * on an attempt to insert a key outside its range.
+     * 返回大于等于fromKey（包含）的子map
      *
      * @param fromKey low endpoint (inclusive) of the keys in the returned map
      * @return a view of the portion of this map whose keys are greater

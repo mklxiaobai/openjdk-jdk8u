@@ -95,6 +95,34 @@ import java.util.function.Consumer;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
+ * TreeMap使用红黑树存储元素，可以保证元素按key值的大小进行遍历。
+ *
+ * 到这里红黑树就整个讲完了，让我们再回顾下红黑树的特性：
+ *
+ * （1）每个节点或者是黑色，或者是红色。
+ *
+ * （2）根节点是黑色。
+ *
+ * （3）每个叶子节点（NIL）是黑色。（注意：这里叶子节点，是指为空(NIL或NULL)的叶子节点！）
+ *
+ * （4）如果一个节点是红色的，则它的子节点必须是黑色的。
+ *
+ * （5）从一个节点到该节点的子孙节点的所有路径上包含相同数目的黑节点。
+ *
+ * 除了上述这些标准的红黑树的特性，你还能讲出来哪些TreeMap的特性呢？
+ *
+ * （1）TreeMap的存储结构只有一颗红黑树；
+ *
+ * （2）TreeMap中的元素是有序的，按key的顺序排列；
+ *
+ * （3）TreeMap比HashMap要慢一些，因为HashMap前面还做了一层桶，寻找元素要快很多；
+ *
+ * （4）TreeMap没有扩容的概念；
+ *
+ * （5）TreeMap的遍历不是采用传统的递归式遍历；
+ *
+ * （6）TreeMap可以按范围查找元素，查找最近的元素；
+ *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *
@@ -115,15 +143,18 @@ public class TreeMap<K,V>
     /**
      * The comparator used to maintain order in this tree map, or
      * null if it uses the natural ordering of its keys.
+     * 比较器，如果没传则key要实现Comparable接口
      *
      * @serial
      */
     private final Comparator<? super K> comparator;
 
+    // 根节点
     private transient Entry<K,V> root;
 
     /**
      * The number of entries in the tree
+     * 元素个数
      */
     private transient int size = 0;
 
@@ -267,6 +298,7 @@ public class TreeMap<K,V>
      * possible that the map explicitly maps the key to {@code null}.
      * The {@link #containsKey containsKey} operation may be used to
      * distinguish these two cases.
+     * 红黑树查询
      *
      * @throws ClassCastException if the specified key cannot be compared
      *         with the keys currently in the map
@@ -275,6 +307,7 @@ public class TreeMap<K,V>
      *         does not permit null keys
      */
     public V get(Object key) {
+        // 根据key查找节点
         Entry<K,V> p = getEntry(key);
         return (p==null ? null : p.value);
     }
@@ -342,19 +375,25 @@ public class TreeMap<K,V>
     final Entry<K,V> getEntry(Object key) {
         // Offload comparator-based version for sake of performance
         if (comparator != null)
+            // 如果比较器不为空，则用比较器来比较
             return getEntryUsingComparator(key);
         if (key == null)
             throw new NullPointerException();
         @SuppressWarnings("unchecked")
+        // 将key强转为Comparable
             Comparable<? super K> k = (Comparable<? super K>) key;
         Entry<K,V> p = root;
+        // 从根元素开始遍历
         while (p != null) {
             int cmp = k.compareTo(p.key);
             if (cmp < 0)
+                // 如果小于0从左子树查找
                 p = p.left;
             else if (cmp > 0)
+                // 如果大于0从右子树查找
                 p = p.right;
             else
+                // 如果相等说明找到了直接返回
                 return p;
         }
         return null;
@@ -519,6 +558,16 @@ public class TreeMap<K,V>
      * If the map previously contained a mapping for the key, the old
      * value is replaced.
      *
+     * 红黑树插入操作
+     *
+     * 根据不同的情况有以下几种处理方式：
+     *
+     * 插入的元素如果是根节点，则直接涂成黑色即可，不用平衡；
+     *
+     * 插入的元素的父节点如果为黑色，不需要平衡；
+     *
+     * 插入的元素的父节点如果为红色，则违背了特性4，需要平衡，平衡时又分成下面三种情况：
+     *
      * @param key key with which the specified value is to be associated
      * @param value value to be associated with the specified key
      *
@@ -535,6 +584,7 @@ public class TreeMap<K,V>
     public V put(K key, V value) {
         Entry<K,V> t = root;
         if (t == null) {
+            // 如果没有根节点，直接插入到根节点
             compare(key, key); // type (and possibly null) check
 
             root = new Entry<>(key, value, null);
@@ -543,18 +593,23 @@ public class TreeMap<K,V>
             return null;
         }
         int cmp;
+        // 用来寻找待插入节点的父节点
         Entry<K,V> parent;
         // split comparator and comparable paths
         Comparator<? super K> cpr = comparator;
         if (cpr != null) {
             do {
+                // 从根节点开始遍历寻找
                 parent = t;
                 cmp = cpr.compare(key, t.key);
                 if (cmp < 0)
+                    // 如果小于0从左子树寻找
                     t = t.left;
                 else if (cmp > 0)
+                    // 如果大于0从右子树寻找
                     t = t.right;
                 else
+                    // 如果等于0，说明插入的节点已经存在了，直接更换其value值并返回旧值
                     return t.setValue(value);
             } while (t != null);
         }
@@ -574,11 +629,15 @@ public class TreeMap<K,V>
                     return t.setValue(value);
             } while (t != null);
         }
+        // 如果没找到，那么新建一个节点，并插入到树中
         Entry<K,V> e = new Entry<>(key, value, parent);
         if (cmp < 0)
+            // 如果小于0插入到左子节点
             parent.left = e;
         else
+            // 如果大于0插入到右子节点
             parent.right = e;
+        // 插入之后的平衡
         fixAfterInsertion(e);
         size++;
         modCount++;
@@ -2048,6 +2107,7 @@ public class TreeMap<K,V>
     /**
      * Node in the Tree.  Doubles as a means to pass key-value pairs back to
      * user (see Map.Entry).
+     * 内部节点 拥有树的三个指针
      */
 
     static final class Entry<K,V> implements Map.Entry<K,V> {
@@ -2218,6 +2278,24 @@ public class TreeMap<K,V>
     }
 
     /** From CLR */
+    /**
+     * 左旋
+     *
+     * 整个左旋过程如下：
+     *
+     * （1）将 y的左节点 设为 x的右节点，即将 β 设为 x的右节点；
+     *
+     * （2）将 x 设为 y的左节点的父节点，即将 β的父节点 设为 x；
+     *
+     * （3）将 x的父节点 设为 y的父节点；
+     *
+     * （4）如果 x的父节点 为空节点，则将y设置为根节点；如果x是它父节点的左（右）节点，则将y设置为x父节点的左（右）节点；
+     *
+     * （5）将 x 设为 y的左节点；
+     *
+     * （6）将 x的父节点 设为 y；
+     * @param p
+     */
     private void rotateLeft(Entry<K,V> p) {
         if (p != null) {
             Entry<K,V> r = p.right;
@@ -2237,6 +2315,24 @@ public class TreeMap<K,V>
     }
 
     /** From CLR */
+    /**
+     * 右旋
+     *
+     * 整个右旋过程如下：
+     *
+     * （1）将 x的右节点 设为 y的左节点，即 将 β 设为 y的左节点；
+     *
+     * （2）将 y 设为 x的右节点的父节点，即 将 β的父节点 设为 y；
+     *
+     * （3）将 y的父节点 设为 x的父节点；
+     *
+     * （4）如果 y的父节点 是 空节点，则将x设为根节点；如果y是它父节点的左（右）节点，则将x设为y的父节点的左（右）节点；
+     *
+     * （5）将 y 设为 x的右节点；
+     *
+     * （6）将 y的父节点 设为 x；
+     * @param p
+     */
     private void rotateRight(Entry<K,V> p) {
         if (p != null) {
             Entry<K,V> l = p.left;
@@ -2254,6 +2350,14 @@ public class TreeMap<K,V>
     }
 
     /** From CLR */
+    /**
+     * 插入再平衡
+     *（1）每个节点或者是黑色，或者是红色。
+     *（2）根节点是黑色。
+     *（3）每个叶子节点（NIL）是黑色。（注意：这里叶子节点，是指为空(NIL或NULL)的叶子节点！）
+     *（4）如果一个节点是红色的，则它的子节点必须是黑色的。
+     *（5）从一个节点到该节点的子孙节点的所有路径上包含相同数目的黑节点。
+     */
     private void fixAfterInsertion(Entry<K,V> x) {
         x.color = RED;
 
